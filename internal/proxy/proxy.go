@@ -384,6 +384,12 @@ func getClientIP(r *http.Request) string {
 
 // saveTrafficRecord saves a traffic record to SQLite
 func saveTrafficRecord(record db.TrafficRecord, insertStmt *sql.Stmt) error {
+	log.Printf("💾 Attempting to save record %s to database...", record.ID)
+
+	// Log record details in a structured way
+	log.Printf("📊 Record details: Method=%s, URL=%s, Status=%d, Size=%d bytes",
+		record.Method, record.URL, record.ResponseStatus, len(record.ResponseBody))
+
 	_, err := insertStmt.Exec(
 		record.ID,
 		record.Timestamp,
@@ -404,6 +410,8 @@ func saveTrafficRecord(record db.TrafficRecord, insertStmt *sql.Stmt) error {
 	if err != nil {
 		return fmt.Errorf("saving record %s: %w", record.ID, err)
 	}
+
+	log.Printf("✅ Record %s saved successfully", record.ID)
 	return nil
 }
 
@@ -436,6 +444,12 @@ func handleHTTPRequest(
 	reqHeadersBytes, _ := json.Marshal(r.Header)
 	clientIP := getClientIP(r)
 
+	// Enhanced logging in record mode
+	if cfg.RecordingMode {
+		log.Printf("📥 Recording request: %s %s from %s", r.Method, r.URL.String(), clientIP)
+		log.Printf("📋 Request headers: %s", string(reqHeadersBytes))
+	}
+
 	// Clone request body if needed for recording/replay matching later
 	var reqBodyBytes []byte
 	var reqBodyErr error
@@ -450,6 +464,14 @@ func handleHTTPRequest(
 			log.Printf("⚠️ Error cloning request body for %s %s: %v", r.Method, r.URL.String(), reqBodyErr)
 		} else {
 			reqBodyBytes = buf.Bytes()
+			if cfg.RecordingMode && len(reqBodyBytes) > 0 {
+				// Log the request body in a readable format
+				if len(reqBodyBytes) > 1024 {
+					log.Printf("📄 Request body (truncated): %s...", string(reqBodyBytes[:1024]))
+				} else {
+					log.Printf("📄 Request body: %s", string(reqBodyBytes))
+				}
+			}
 			r.Body = io.NopCloser(bytes.NewReader(reqBodyBytes))
 		}
 	} else if r.Body != nil {
@@ -478,6 +500,10 @@ func handleHTTPRequest(
 			header:         http.Header{},
 		}
 		writer = recorder
+
+		// Log target URL in record mode
+		targetURL := cfg.GetTargetURL(r.URL.Path)
+		log.Printf("🔄 Proxying request to target: %s", targetURL)
 	}
 
 	// Serve the request using the proxy
@@ -492,10 +518,28 @@ func handleHTTPRequest(
 		respHeadersBytes, _ := json.Marshal(recorder.Header())
 		respBodyBytes := recorder.body.Bytes()
 
+		// Enhanced logging for response
+		log.Printf("📤 Received response with status: %d in %d ms", recorder.statusCode, duration)
+		log.Printf("📋 Response headers: %s", string(respHeadersBytes))
+
+		// Log response body in a readable format (truncate if too large)
+		if len(respBodyBytes) > 0 {
+			if len(respBodyBytes) > 1024 {
+				log.Printf("📄 Response body (truncated): %s...", string(respBodyBytes[:1024]))
+			} else {
+				log.Printf("📄 Response body: %s", string(respBodyBytes))
+			}
+		} else {
+			log.Printf("📄 Response body: <empty>")
+		}
+
 		// Save the record asynchronously
 		go func() {
+			recordID := generateID()
+			log.Printf("💾 Saving traffic record ID: %s", recordID)
+
 			record := db.TrafficRecord{
-				ID:              generateID(),
+				ID:              recordID,
 				Timestamp:       time.Now().UTC(),
 				Protocol:        "HTTP",
 				Method:          r.Method,
@@ -510,8 +554,11 @@ func handleHTTPRequest(
 				SessionID:       r.Header.Get("X-Session-ID"),
 				TestID:          r.Header.Get("X-Test-ID"),
 			}
+
 			if err := saveTrafficRecord(record, insertStmt); err != nil {
 				log.Printf("⚠️ Error saving recorded HTTP traffic: %v", err)
+			} else {
+				log.Printf("✅ Successfully saved record %s to database", recordID)
 			}
 		}()
 	}
