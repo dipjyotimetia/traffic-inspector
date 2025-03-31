@@ -21,5 +21,12 @@
   ],
   "sqlite_db_path": "traffic_inspector.db",
   "recording_mode": false,
-  "replay_mode": false
+  "replay_mode": false,
+  "tls": {
+    "enabled": false,
+    "cert_file": "./certs/server.crt",
+    "key_file": "./certs/server.key",
+    "port": 8443,
+    "allow_insecure": false
+  }
 }

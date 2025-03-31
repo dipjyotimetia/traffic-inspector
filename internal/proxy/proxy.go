@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -145,6 +146,109 @@ func StartHTTPProxy(ctx context.Context, cfg *config.Config, db *sql.DB, insertS
 
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Printf("🚨 HTTP server error: %v", err)
+		}
+	}()
+
+	return server
+}
+
+func StartHTTPSProxy(ctx context.Context, cfg *config.Config, db *sql.DB, insertStmt *sql.Stmt) Server {
+	if !cfg.TLS.Enabled {
+		log.Println("⚠️ TLS is not enabled in configuration, skipping HTTPS proxy")
+		return nil
+	}
+
+	// Create a custom director for path-based routing
+	director := func(req *http.Request) {
+		// Determine target URL based on request path
+		targetURLStr := cfg.GetTargetURL(req.URL.Path)
+
+		// Parse the target URL for this request
+		target, err := url.Parse(targetURLStr)
+		if err != nil {
+			log.Printf("🚨 ERROR: Invalid target URL %s: %v", targetURLStr, err)
+			return
+		}
+
+		// Update request URL with correct scheme, host, etc. but keep the original path
+		originalPath := req.URL.Path
+		originalQuery := req.URL.RawQuery
+
+		// Set the scheme, host, etc. from the target
+		*req.URL = *target
+
+		// Restore original path and query
+		req.URL.Path = originalPath
+		req.URL.RawQuery = originalQuery
+
+		// Set host header to target host
+		req.Host = target.Host
+		req.Header.Del("X-Forwarded-For")
+	}
+
+	// Create a custom ReverseProxy with our director
+	proxy := &httputil.ReverseProxy{
+		Director: director,
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   10 * time.Second,
+				KeepAlive: 60 * time.Second,
+			}).DialContext,
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          200,
+			MaxIdleConnsPerHost:   100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+			ResponseHeaderTimeout: 20 * time.Second,
+			// Allow insecure TLS if configured
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: cfg.TLS.AllowInsecure,
+			},
+		},
+		ErrorHandler: func(rw http.ResponseWriter, r *http.Request, err error) {
+			log.Printf("🚨 HTTPS proxy error: %v", err)
+			rw.WriteHeader(http.StatusBadGateway)
+		},
+	}
+
+	// Buffer pool for the response writer wrapper
+	responseBufPool := sync.Pool{
+		New: func() interface{} {
+			return new(bytes.Buffer)
+		},
+	}
+
+	// Create handler function with all dependencies
+	handler := createHTTPHandler(proxy, cfg, db, insertStmt, &responseBufPool)
+
+	// Create HTTPS server with TLS configuration
+	server := &http.Server{
+		Addr:    fmt.Sprintf(":%d", cfg.TLS.Port),
+		Handler: http.HandlerFunc(handler),
+		// Set timeouts
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	// Start HTTPS server in a goroutine
+	go func() {
+		log.Printf("🚀 Starting HTTPS proxy server on port %d with TLS", cfg.TLS.Port)
+		// Log the routing table
+		if len(cfg.TargetRoutes) > 0 {
+			log.Println("📝 Routing configuration:")
+			for _, route := range cfg.TargetRoutes {
+				log.Printf("  %s -> %s", route.PathPrefix, route.TargetURL)
+			}
+		}
+		if cfg.HTTPTargetURL != "" {
+			log.Printf("  default -> %s", cfg.HTTPTargetURL)
+		}
+
+		if err := server.ListenAndServeTLS(cfg.TLS.CertFile, cfg.TLS.KeyFile); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("🚨 HTTPS server error: %v", err)
 		}
 	}()
 

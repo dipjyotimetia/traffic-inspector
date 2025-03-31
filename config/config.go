@@ -13,6 +13,15 @@ type TargetRoute struct {
 	TargetURL  string `mapstructure:"target_url"`
 }
 
+// TLSConfig holds TLS configuration
+type TLSConfig struct {
+	Enabled       bool   `mapstructure:"enabled"`
+	CertFile      string `mapstructure:"cert_file"`
+	KeyFile       string `mapstructure:"key_file"`
+	Port          int    `mapstructure:"port"`
+	AllowInsecure bool   `mapstructure:"allow_insecure"`
+}
+
 // Config holds the application configuration
 type Config struct {
 	HTTPPort      int           `mapstructure:"http_port"`
@@ -21,6 +30,7 @@ type Config struct {
 	SQLiteDBPath  string        `mapstructure:"sqlite_db_path"`
 	RecordingMode bool          `mapstructure:"recording_mode"`
 	ReplayMode    bool          `mapstructure:"replay_mode"`
+	TLS           TLSConfig     `mapstructure:"tls"` // TLS configuration
 }
 
 // LoadConfig reads configuration from Viper
@@ -34,6 +44,11 @@ func LoadConfig(v *viper.Viper) (*Config, error) {
 	// Set default SQLite path if not provided
 	if config.SQLiteDBPath == "" {
 		config.SQLiteDBPath = "traffic_inspector.db"
+	}
+
+	// Set default TLS port if TLS is enabled but no port specified
+	if config.TLS.Enabled && config.TLS.Port == 0 {
+		config.TLS.Port = 8443 // Default HTTPS port for the proxy
 	}
 
 	// Validate config
@@ -72,6 +87,16 @@ func validateConfig(config *Config) error {
 
 		if route.TargetURL == "" {
 			return errors.New("target_url cannot be empty for target routes")
+		}
+	}
+
+	// Validate TLS config if enabled
+	if config.TLS.Enabled {
+		if config.TLS.CertFile == "" {
+			return errors.New("tls.cert_file must be provided when TLS is enabled")
+		}
+		if config.TLS.KeyFile == "" {
+			return errors.New("tls.key_file must be provided when TLS is enabled")
 		}
 	}
 
