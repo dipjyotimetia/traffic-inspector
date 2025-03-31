@@ -55,7 +55,7 @@ func TestStartHTTPProxy_PassthroughMode(t *testing.T) {
 	defer os.Remove(tempDB.Name())
 	tempDB.Close()
 
-	db, err := sql.Open("sqlite3", tempDB.Name())
+	db, err := sql.Open("sqlite", tempDB.Name())
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}

@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3" // SQLite driver
+	_ "modernc.org/sqlite" // SQLite driver
 )
 
 // TrafficRecord represents a captured API call
@@ -30,7 +30,7 @@ type TrafficRecord struct {
 // Initialize sets up the database connection and schema
 func Initialize(dbPath string) (*sql.DB, *sql.Stmt, error) {
 	// Initialize SQLite client
-	db, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000")
+	db, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000")
 	if err != nil {
 		return nil, nil, fmt.Errorf("opening SQLite database: %w", err)
 	}
