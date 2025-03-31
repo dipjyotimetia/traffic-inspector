@@ -1,0 +1,25 @@
+{
+  "http_port": 8080,
+  "http_target_url": "https://jsonplaceholder.typicode.com",
+  "target_routes": [
+    {
+      "path_prefix": "/todos/*",
+      "target_url": "https://jsonplaceholder.typicode.com"
+    },
+    {
+      "path_prefix": "/api/v1/products/",
+      "target_url": "https://api.escuelajs.co"
+    },
+    {
+      "path_prefix": "/api/v1/users/",
+      "target_url": "https://api.escuelajs.co"
+    },
+    {
+      "path_prefix": "/api/v1/users/is-available",
+      "target_url": "https://api.escuelajs.co"
+    }
+  ],
+  "sqlite_db_path": "traffic_inspector.db",
+  "recording_mode": false,
+  "replay_mode": false
+}
