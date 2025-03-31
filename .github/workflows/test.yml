@@ -30,4 +30,3 @@ jobs:
         test-json-file: test-output.json
         output-file: test-report.md
         comment-pr: true
-        
