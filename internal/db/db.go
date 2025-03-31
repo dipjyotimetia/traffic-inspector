@@ -29,15 +29,15 @@ type TrafficRecord struct {
 
 // Initialize sets up the database connection and schema
 func Initialize(dbPath string) (*sql.DB, *sql.Stmt, error) {
-	// Initialize SQLite client
-	db, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000")
+	// Initialize SQLite client with improved concurrency settings
+	db, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=30000&_timeout=30000&cache=shared")
 	if err != nil {
 		return nil, nil, fmt.Errorf("opening SQLite database: %w", err)
 	}
 
 	// Set SQLite connection pool settings
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(10)
+	db.SetMaxOpenConns(1) // Set to 1 for better concurrency handling in SQLite
+	db.SetMaxIdleConns(1)
 	db.SetConnMaxLifetime(5 * time.Minute)
 
 	if err := db.Ping(); err != nil {
