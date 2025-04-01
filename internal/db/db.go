@@ -6,7 +6,8 @@ import (
 	"log"
 	"time"
 
-	_ "modernc.org/sqlite" // SQLite driver
+	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "github.com/ncruces/go-sqlite3/embed"
 )
 
 // TrafficRecord represents a captured API call
@@ -30,13 +31,13 @@ type TrafficRecord struct {
 // Initialize sets up the database connection and schema
 func Initialize(dbPath string) (*sql.DB, *sql.Stmt, error) {
 	// Initialize SQLite client with improved concurrency settings
-	db, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=30000&_timeout=30000&cache=shared")
+	db, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=30000&_timeout=30000&cache=shared")
 	if err != nil {
 		return nil, nil, fmt.Errorf("opening SQLite database: %w", err)
 	}
 
 	// Set SQLite connection pool settings
-	db.SetMaxOpenConns(1) // Set to 1 for better concurrency handling in SQLite
+	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	db.SetConnMaxLifetime(5 * time.Minute)
 
