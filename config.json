@@ -28,5 +28,25 @@
     "key_file": "./certs/server.key",
     "port": 8443,
     "allow_insecure": false
+  },
+  "websocket": {
+    "enabled": false,
+    "read_buffer_size": 4096,
+    "write_buffer_size": 4096,
+    "enable_compression": false,
+    "handshake_timeout": "10s",
+    "ping_interval": "30s",
+    "routes": [
+      {
+        "path_prefix": "/socket/",
+        "target_url": "wss://echo.websocket.org",
+        "description": "Echo WebSocket server"
+      },
+      {
+        "path_prefix": "/ws/events/",
+        "target_url": "wss://api.example.com/ws",
+        "description": "Example API WebSocket"
+      }
+    ]
   }
 }

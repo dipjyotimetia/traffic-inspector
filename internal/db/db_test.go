@@ -83,6 +83,67 @@ func TestTrafficRecordStorage(t *testing.T) {
 			TestID:          "test-456",
 			SessionID:       "session-def",
 		},
+		// Add WebSocket records for testing
+		{
+			ID:              "ws-connect-1",
+			Timestamp:       time.Now().UTC(),
+			Protocol:        "WebSocket",
+			Method:          "CONNECT",
+			URL:             "wss://example.com/ws/chat",
+			RequestHeaders:  `{"Upgrade": ["websocket"], "Connection": ["Upgrade"]}`,
+			ResponseStatus:  101,
+			ResponseHeaders: `{"Upgrade": ["websocket"], "Connection": ["Upgrade"]}`,
+			Duration:        50,
+			ClientIP:        "192.168.1.3",
+			TestID:          "test-ws-1",
+			SessionID:       "session-ws-1",
+			ConnectionID:    "conn-abc-123",
+		},
+		{
+			ID:             "ws-message-1",
+			Timestamp:      time.Now().UTC(),
+			Protocol:       "WebSocket",
+			Method:         "MESSAGE",
+			URL:            "wss://example.com/ws/chat",
+			RequestBody:    []byte(`{"type": "chat", "message": "Hello"}`),
+			ResponseStatus: 200,
+			Duration:       10,
+			ClientIP:       "192.168.1.3",
+			TestID:         "test-ws-1",
+			SessionID:      "session-ws-1",
+			ConnectionID:   "conn-abc-123",
+			MessageType:    1, // Text message
+			Direction:      "outbound",
+		},
+		{
+			ID:             "ws-message-2",
+			Timestamp:      time.Now().UTC(),
+			Protocol:       "WebSocket",
+			Method:         "MESSAGE",
+			URL:            "wss://example.com/ws/chat",
+			ResponseBody:   []byte(`{"type": "chat", "message": "Hi there!"}`),
+			ResponseStatus: 200,
+			Duration:       15,
+			ClientIP:       "192.168.1.3",
+			TestID:         "test-ws-1",
+			SessionID:      "session-ws-1",
+			ConnectionID:   "conn-abc-123",
+			MessageType:    1, // Text message
+			Direction:      "inbound",
+		},
+		{
+			ID:             "ws-close-1",
+			Timestamp:      time.Now().UTC(),
+			Protocol:       "WebSocket",
+			Method:         "CLOSE",
+			URL:            "wss://example.com/ws/chat",
+			ResponseStatus: 0,
+			Duration:       5,
+			ClientIP:       "192.168.1.3",
+			TestID:         "test-ws-1",
+			SessionID:      "session-ws-1",
+			ConnectionID:   "conn-abc-123",
+		},
 	}
 
 	// Insert test records
@@ -103,13 +164,16 @@ func TestTrafficRecordStorage(t *testing.T) {
 			record.ClientIP,
 			record.TestID,
 			record.SessionID,
+			record.ConnectionID,
+			record.MessageType,
+			record.Direction,
 		)
 		if err != nil {
 			t.Fatalf("Failed to insert test record: %v", err)
 		}
 	}
 
-	// Test queries
+	// Test HTTP queries
 	t.Run("QueryByID", func(t *testing.T) {
 		var id, protocol, method, url string
 		var status int
@@ -144,19 +208,68 @@ func TestTrafficRecordStorage(t *testing.T) {
 		}
 	})
 
+	// Test WebSocket queries
+	t.Run("QueryWebSocketByConnectionID", func(t *testing.T) {
+		var count int
+
+		err := database.QueryRow(
+			"SELECT COUNT(*) FROM traffic_records WHERE protocol = ? AND connection_id = ?",
+			"WebSocket", "conn-abc-123",
+		).Scan(&count)
+		if err != nil {
+			t.Fatalf("Failed to count WebSocket records by connection ID: %v", err)
+		}
+
+		if count != 4 {
+			t.Errorf("Wrong count for WebSocket connection: got %d, want 4", count)
+		}
+	})
+
+	t.Run("QueryWebSocketMessagesByDirection", func(t *testing.T) {
+		var count int
+
+		err := database.QueryRow(
+			"SELECT COUNT(*) FROM traffic_records WHERE protocol = ? AND method = ? AND direction = ?",
+			"WebSocket", "MESSAGE", "outbound",
+		).Scan(&count)
+		if err != nil {
+			t.Fatalf("Failed to count WebSocket outbound messages: %v", err)
+		}
+
+		if count != 1 {
+			t.Errorf("Wrong count for WebSocket outbound messages: got %d, want 1", count)
+		}
+	})
+
+	t.Run("QueryWebSocketMessagesByType", func(t *testing.T) {
+		var count int
+
+		err := database.QueryRow(
+			"SELECT COUNT(*) FROM traffic_records WHERE protocol = ? AND method = ? AND message_type = ?",
+			"WebSocket", "MESSAGE", 1,
+		).Scan(&count)
+		if err != nil {
+			t.Fatalf("Failed to count WebSocket text messages: %v", err)
+		}
+
+		if count != 2 {
+			t.Errorf("Wrong count for WebSocket text messages: got %d, want 2", count)
+		}
+	})
+
 	t.Run("QueryBySession", func(t *testing.T) {
 		var count int
 
 		err := database.QueryRow(
 			"SELECT COUNT(*) FROM traffic_records WHERE session_id = ?",
-			"session-abc",
+			"session-ws-1",
 		).Scan(&count)
 		if err != nil {
-			t.Fatalf("Failed to count records by session: %v", err)
+			t.Fatalf("Failed to count records by WebSocket session: %v", err)
 		}
 
-		if count != 1 {
-			t.Errorf("Wrong count for session-abc: got %d, want 1", count)
+		if count != 4 {
+			t.Errorf("Wrong count for session-ws-1: got %d, want 4", count)
 		}
 	})
 }
@@ -197,6 +310,7 @@ func TestDatabaseIndexes(t *testing.T) {
 	// Verify expected indexes
 	expectedIndexes := []string{
 		"idx_http_lookup",
+		"idx_ws_lookup", // WebSocket index
 		"idx_timestamp",
 		"idx_session_id",
 		"idx_test_id",
@@ -266,8 +380,8 @@ func TestDatabaseConcurrency(t *testing.T) {
 	var idMutex sync.Mutex
 	idCounter := 0
 
-	// Insert records concurrently
-	for i := range numConcurrent {
+	// Insert records concurrently - test both HTTP and WebSocket records
+	for i := 0; i < numConcurrent; i++ {
 		go func(idx int) {
 			// Generate a truly unique ID
 			idMutex.Lock()
@@ -275,21 +389,44 @@ func TestDatabaseConcurrency(t *testing.T) {
 			uniqueID := fmt.Sprintf("concurrent-%d-%d", idx, idCounter)
 			idMutex.Unlock()
 
-			record := TrafficRecord{
-				ID:              uniqueID,
-				Timestamp:       time.Now().UTC(),
-				Protocol:        "HTTP",
-				Method:          "GET",
-				URL:             fmt.Sprintf("https://example.com/api/concurrent/%d", idx),
-				RequestHeaders:  `{"Content-Type": ["application/json"]}`,
-				RequestBody:     []byte(fmt.Sprintf(`{"worker": %d}`, idx)),
-				ResponseStatus:  200,
-				ResponseHeaders: `{"Content-Type": ["application/json"]}`,
-				ResponseBody:    []byte(`{"result": "ok"}`),
-				Duration:        int64(100 + idx),
-				ClientIP:        fmt.Sprintf("192.168.1.%d", idx),
-				TestID:          fmt.Sprintf("test-%d", idx),
-				SessionID:       fmt.Sprintf("session-%d", idx),
+			// Alternate between HTTP and WebSocket records
+			var record TrafficRecord
+			if idx%2 == 0 {
+				// HTTP record
+				record = TrafficRecord{
+					ID:              uniqueID,
+					Timestamp:       time.Now().UTC(),
+					Protocol:        "HTTP",
+					Method:          "GET",
+					URL:             fmt.Sprintf("https://example.com/api/concurrent/%d", idx),
+					RequestHeaders:  `{"Content-Type": ["application/json"]}`,
+					RequestBody:     []byte(fmt.Sprintf(`{"worker": %d}`, idx)),
+					ResponseStatus:  200,
+					ResponseHeaders: `{"Content-Type": ["application/json"]}`,
+					ResponseBody:    []byte(`{"result": "ok"}`),
+					Duration:        int64(100 + idx),
+					ClientIP:        fmt.Sprintf("192.168.1.%d", idx),
+					TestID:          fmt.Sprintf("test-%d", idx),
+					SessionID:       fmt.Sprintf("session-%d", idx),
+				}
+			} else {
+				// WebSocket record
+				record = TrafficRecord{
+					ID:             uniqueID,
+					Timestamp:      time.Now().UTC(),
+					Protocol:       "WebSocket",
+					Method:         "MESSAGE",
+					URL:            fmt.Sprintf("wss://example.com/ws/concurrent/%d", idx),
+					RequestBody:    []byte(fmt.Sprintf(`{"worker": %d, "msg": "hello"}`, idx)),
+					ResponseStatus: 200,
+					Duration:       int64(50 + idx),
+					ClientIP:       fmt.Sprintf("192.168.1.%d", idx),
+					TestID:         fmt.Sprintf("test-ws-%d", idx),
+					SessionID:      fmt.Sprintf("session-ws-%d", idx),
+					ConnectionID:   fmt.Sprintf("conn-%d", idx),
+					MessageType:    1, // Text message
+					Direction:      "outbound",
+				}
 			}
 
 			_, err := stmt.Exec(
@@ -308,6 +445,9 @@ func TestDatabaseConcurrency(t *testing.T) {
 				record.ClientIP,
 				record.TestID,
 				record.SessionID,
+				record.ConnectionID,
+				record.MessageType,
+				record.Direction,
 			)
 			if err != nil {
 				errCh <- err
@@ -322,7 +462,7 @@ func TestDatabaseConcurrency(t *testing.T) {
 	successCount := 0
 	errorCount := 0
 
-	for range numConcurrent {
+	for i := 0; i < numConcurrent; i++ {
 		select {
 		case <-doneCh:
 			successCount++
@@ -345,5 +485,23 @@ func TestDatabaseConcurrency(t *testing.T) {
 
 	if count != numConcurrent {
 		t.Errorf("Expected %d records, got %d", numConcurrent, count)
+	}
+
+	// Verify protocol split
+	var wsCount int
+	err = database.QueryRow("SELECT COUNT(*) FROM traffic_records WHERE protocol = 'WebSocket'").Scan(&wsCount)
+	if err != nil {
+		t.Fatalf("Failed to count WebSocket records: %v", err)
+	}
+
+	var httpCount int
+	err = database.QueryRow("SELECT COUNT(*) FROM traffic_records WHERE protocol = 'HTTP'").Scan(&httpCount)
+	if err != nil {
+		t.Fatalf("Failed to count HTTP records: %v", err)
+	}
+
+	// We should have approximately half WebSocket and half HTTP records
+	if wsCount < numConcurrent/4 || httpCount < numConcurrent/4 {
+		t.Errorf("Unexpected protocol distribution: HTTP=%d, WebSocket=%d", httpCount, wsCount)
 	}
 }

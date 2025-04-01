@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -12,6 +13,7 @@ func TestLoadConfig(t *testing.T) {
 		configMap map[string]interface{}
 		wantErr   bool
 	}{
+		// Existing test cases...
 		{
 			name: "Valid configuration",
 			configMap: map[string]interface{}{
@@ -109,6 +111,91 @@ func TestLoadConfig(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		// New test cases for WebSocket configuration
+		{
+			name: "Valid WebSocket config",
+			configMap: map[string]interface{}{
+				"http_port":       8080,
+				"http_target_url": "http://example.com",
+				"websocket": map[string]interface{}{
+					"enabled":           true,
+					"read_buffer_size":  4096,
+					"write_buffer_size": 4096,
+					"routes": []map[string]interface{}{
+						{
+							"path_prefix": "/ws",
+							"target_url":  "ws://websocket.example.com",
+							"description": "Test WebSocket",
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "WebSocket enabled without routes",
+			configMap: map[string]interface{}{
+				"http_port":       8080,
+				"http_target_url": "http://example.com",
+				"websocket": map[string]interface{}{
+					"enabled": true,
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "WebSocket route with invalid path prefix",
+			configMap: map[string]interface{}{
+				"http_port":       8080,
+				"http_target_url": "http://example.com",
+				"websocket": map[string]interface{}{
+					"enabled": true,
+					"routes": []map[string]interface{}{
+						{
+							"path_prefix": "ws", // Missing leading slash
+							"target_url":  "ws://websocket.example.com",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "WebSocket route without target URL",
+			configMap: map[string]interface{}{
+				"http_port":       8080,
+				"http_target_url": "http://example.com",
+				"websocket": map[string]interface{}{
+					"enabled": true,
+					"routes": []map[string]interface{}{
+						{
+							"path_prefix": "/ws",
+							// Missing target_url
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "WebSocket with custom timeouts",
+			configMap: map[string]interface{}{
+				"http_port":       8080,
+				"http_target_url": "http://example.com",
+				"websocket": map[string]interface{}{
+					"enabled":           true,
+					"handshake_timeout": "15s",
+					"ping_interval":     "45s",
+					"routes": []map[string]interface{}{
+						{
+							"path_prefix": "/ws",
+							"target_url":  "ws://websocket.example.com",
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -133,6 +220,25 @@ func TestLoadConfig(t *testing.T) {
 				// Verify TLS port default
 				if config.TLS.Enabled && config.TLS.Port == 0 {
 					t.Error("Default TLS port not set when TLS enabled")
+				}
+
+				// Verify WebSocket defaults when enabled
+				if config.WebSocket.Enabled {
+					if config.WebSocket.ReadBufferSize <= 0 {
+						t.Error("Default WebSocket ReadBufferSize not set")
+					}
+
+					if config.WebSocket.WriteBufferSize <= 0 {
+						t.Error("Default WebSocket WriteBufferSize not set")
+					}
+
+					if config.WebSocket.HandshakeTimeout <= 0 {
+						t.Error("Default WebSocket HandshakeTimeout not set")
+					}
+
+					if config.WebSocket.PingInterval <= 0 {
+						t.Error("Default WebSocket PingInterval not set")
+					}
 				}
 			}
 		})
@@ -183,5 +289,202 @@ func TestGetTargetURL(t *testing.T) {
 				t.Errorf("GetTargetURL() got = %v, want %v", result, tt.expected)
 			}
 		})
+	}
+}
+
+// TestGetWebSocketTargetURL tests the GetWebSocketTargetURL method
+func TestGetWebSocketTargetURL(t *testing.T) {
+	config := &Config{
+		WebSocket: WebSocketConfig{
+			Enabled: true,
+			WebSocketRoutes: []WebSocketRoute{
+				{
+					PathPrefix:  "/ws/chat",
+					TargetURL:   "wss://chat.example.com",
+					Description: "Chat WebSocket",
+				},
+				{
+					PathPrefix:  "/ws/events",
+					TargetURL:   "wss://events.example.com",
+					Description: "Events WebSocket",
+				},
+			},
+		},
+	}
+
+	disabledConfig := &Config{
+		WebSocket: WebSocketConfig{
+			Enabled: false,
+			WebSocketRoutes: []WebSocketRoute{
+				{
+					PathPrefix:  "/ws/chat",
+					TargetURL:   "wss://chat.example.com",
+					Description: "Chat WebSocket",
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		config   *Config
+		path     string
+		wantURL  string
+		wantBool bool
+	}{
+		{
+			name:     "Match first WebSocket route",
+			config:   config,
+			path:     "/ws/chat/room/123",
+			wantURL:  "wss://chat.example.com",
+			wantBool: true,
+		},
+		{
+			name:     "Match second WebSocket route",
+			config:   config,
+			path:     "/ws/events/stream",
+			wantURL:  "wss://events.example.com",
+			wantBool: true,
+		},
+		{
+			name:     "No matching WebSocket route",
+			config:   config,
+			path:     "/api/data",
+			wantURL:  "",
+			wantBool: false,
+		},
+		{
+			name:     "WebSocket disabled",
+			config:   disabledConfig,
+			path:     "/ws/chat/room/123",
+			wantURL:  "",
+			wantBool: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotURL, gotBool := tt.config.GetWebSocketTargetURL(tt.path)
+			if gotURL != tt.wantURL || gotBool != tt.wantBool {
+				t.Errorf("GetWebSocketTargetURL() = (%v, %v), want (%v, %v)",
+					gotURL, gotBool, tt.wantURL, tt.wantBool)
+			}
+		})
+	}
+}
+
+// TestIsWebSocketPath tests the IsWebSocketPath method
+func TestIsWebSocketPath(t *testing.T) {
+	config := &Config{
+		WebSocket: WebSocketConfig{
+			Enabled: true,
+			WebSocketRoutes: []WebSocketRoute{
+				{
+					PathPrefix:  "/ws/chat",
+					TargetURL:   "wss://chat.example.com",
+					Description: "Chat WebSocket",
+				},
+				{
+					PathPrefix:  "/socket/",
+					TargetURL:   "wss://socket.example.com",
+					Description: "Socket API",
+				},
+			},
+		},
+	}
+
+	disabledConfig := &Config{
+		WebSocket: WebSocketConfig{
+			Enabled: false,
+			WebSocketRoutes: []WebSocketRoute{
+				{
+					PathPrefix:  "/ws/chat",
+					TargetURL:   "wss://chat.example.com",
+					Description: "Chat WebSocket",
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name   string
+		config *Config
+		path   string
+		want   bool
+	}{
+		{
+			name:   "WebSocket path first route",
+			config: config,
+			path:   "/ws/chat/user/123",
+			want:   true,
+		},
+		{
+			name:   "WebSocket path second route",
+			config: config,
+			path:   "/socket/notifications",
+			want:   true,
+		},
+		{
+			name:   "Not a WebSocket path",
+			config: config,
+			path:   "/api/users",
+			want:   false,
+		},
+		{
+			name:   "WebSocket disabled",
+			config: disabledConfig,
+			path:   "/ws/chat/user/123",
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.config.IsWebSocketPath(tt.path)
+			if got != tt.want {
+				t.Errorf("IsWebSocketPath() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestWebSocketTimeoutDefaults tests that timeout defaults are applied correctly
+func TestWebSocketTimeoutDefaults(t *testing.T) {
+	v := viper.New()
+	v.Set("http_port", 8080)
+	v.Set("http_target_url", "http://example.com")
+	v.Set("websocket.enabled", true)
+	v.Set("websocket.routes", []map[string]interface{}{
+		{
+			"path_prefix": "/ws",
+			"target_url":  "ws://example.com/ws",
+		},
+	})
+
+	config, err := LoadConfig(v)
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+
+	// Check default timeout values
+	if config.WebSocket.HandshakeTimeout != 10*time.Second {
+		t.Errorf("Default HandshakeTimeout not set correctly, got %v, want %v",
+			config.WebSocket.HandshakeTimeout, 10*time.Second)
+	}
+
+	if config.WebSocket.PingInterval != 30*time.Second {
+		t.Errorf("Default PingInterval not set correctly, got %v, want %v",
+			config.WebSocket.PingInterval, 30*time.Second)
+	}
+
+	// Check default buffer sizes
+	if config.WebSocket.ReadBufferSize != 1024 {
+		t.Errorf("Default ReadBufferSize not set correctly, got %v, want %v",
+			config.WebSocket.ReadBufferSize, 1024)
+	}
+
+	if config.WebSocket.WriteBufferSize != 1024 {
+		t.Errorf("Default WriteBufferSize not set correctly, got %v, want %v",
+			config.WebSocket.WriteBufferSize, 1024)
 	}
 }

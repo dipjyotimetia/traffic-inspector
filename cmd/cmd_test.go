@@ -9,6 +9,7 @@ import (
 )
 
 // initStartFlags initializes the flags for the start command
+
 func initStartFlags() {
 	startCmd.Flags().BoolP("record", "r", false, "Enable recording mode")
 	startCmd.Flags().BoolP("replay", "p", false, "Enable replay mode")
@@ -16,6 +17,11 @@ func initStartFlags() {
 	startCmd.Flags().String("cert", "", "TLS certificate file path")
 	startCmd.Flags().String("key", "", "TLS key file path")
 	startCmd.Flags().Int("tls-port", 443, "TLS port")
+
+	// Add WebSocket flag initialization for tests
+	startCmd.Flags().Bool("websocket", false, "Enable WebSocket support")
+	startCmd.Flags().Int("ws-read-buffer", 4096, "WebSocket read buffer size in bytes")
+	startCmd.Flags().Int("ws-write-buffer", 4096, "WebSocket write buffer size in bytes")
 }
 
 func TestVersionCommand(t *testing.T) {
