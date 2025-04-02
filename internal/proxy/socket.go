@@ -80,6 +80,7 @@ func isWebSocketRequest(r *http.Request) bool {
 }
 
 // Handle WebSocket in replay mode
+// Handle WebSocket in replay mode
 func (p *WebSocketProxy) handleReplayMode(w http.ResponseWriter, r *http.Request, connectionID string) {
 	// Upgrade the connection first
 	clientConn, err := upgrader.Upgrade(w, r, nil)
@@ -95,12 +96,15 @@ func (p *WebSocketProxy) handleReplayMode(w http.ResponseWriter, r *http.Request
 
 	log.Printf("🔁 Replaying WebSocket traffic for %s", r.URL.String())
 
-	// Query for stored messages
+	// Modified query to get both request_body and response_body for inbound/outbound messages
+	// Only fetch MESSAGE method entries with valid message types
 	rows, err := p.database.Query(`
-        SELECT message_type, request_body, timestamp 
+        SELECT message_type, COALESCE(response_body, request_body) as body, timestamp 
         FROM traffic_records 
-        WHERE protocol = 'WebSocket' AND url = ? 
-        ORDER BY timestamp ASC`, r.URL.String())
+        WHERE protocol = 'WebSocket' AND url = ? AND method = 'MESSAGE' 
+        AND message_type IN (?, ?)
+        ORDER BY timestamp ASC`,
+		r.URL.String(), TextMessage, BinaryMessage)
 	if err != nil {
 		log.Printf("🚨 DB error during WebSocket replay lookup: %v", err)
 		clientConn.WriteMessage(TextMessage, []byte("Error retrieving WebSocket data"))
@@ -124,12 +128,20 @@ func (p *WebSocketProxy) handleReplayMode(w http.ResponseWriter, r *http.Request
 			log.Printf("🚨 Error scanning WebSocket message: %v", err)
 			continue
 		}
+
+		// Validate message type
+		if msg.messageType != TextMessage && msg.messageType != BinaryMessage {
+			log.Printf("⚠️ Skipping message with invalid type: %d", msg.messageType)
+			continue
+		}
+
 		messages = append(messages, msg)
 	}
 
 	if len(messages) == 0 {
 		log.Printf("⚠️ No recorded WebSocket messages found for %s", r.URL.String())
 		clientConn.WriteMessage(TextMessage, []byte("No recorded WebSocket data available"))
+		clientConn.WriteMessage(CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "No messages to replay"))
 		return
 	}
 
@@ -144,6 +156,12 @@ func (p *WebSocketProxy) handleReplayMode(w http.ResponseWriter, r *http.Request
 			}
 		}
 
+		// Ensure message data is not nil before sending
+		if msg.data == nil {
+			log.Printf("⚠️ Skipping nil message data")
+			continue
+		}
+
 		err := clientConn.WriteMessage(msg.messageType, msg.data)
 		if err != nil {
 			log.Printf("🚨 Error writing replayed message: %v", err)
@@ -155,7 +173,12 @@ func (p *WebSocketProxy) handleReplayMode(w http.ResponseWriter, r *http.Request
 			msg.messageType, len(msg.data))
 	}
 
-	// Keep connection open until client disconnects
+	// Send a proper close message to the client
+	log.Printf("✅ Finished replaying all WebSocket messages, sending close message")
+	clientConn.WriteMessage(CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "Replay complete"))
+
+	// Wait for client to close connection or timeout
+	clientConn.SetReadDeadline(time.Now().Add(1 * time.Second))
 	for {
 		_, _, err := clientConn.ReadMessage()
 		if err != nil {

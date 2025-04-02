@@ -17,6 +17,7 @@ type TrafficRecord struct {
 	Protocol        string    `json:"protocol"` // HTTP or WebSocket
 	Method          string    `json:"method"`   // HTTP method or WS event type (connect/message/close)
 	URL             string    `json:"url"`
+	Service         string    `json:"service"` // Added service field
 	RequestHeaders  string    `json:"request_headers"`
 	RequestBody     []byte    `json:"request_body"`
 	ResponseStatus  int       `json:"response_status"` // HTTP status code

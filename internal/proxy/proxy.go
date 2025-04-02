@@ -396,7 +396,7 @@ func saveTrafficRecord(record db.TrafficRecord, insertStmt *sql.Stmt) error {
 		record.Protocol,
 		record.Method,
 		record.URL,
-		"", // service field
+		record.Service,
 		record.RequestHeaders,
 		record.RequestBody,
 		record.ResponseStatus,
@@ -406,6 +406,9 @@ func saveTrafficRecord(record db.TrafficRecord, insertStmt *sql.Stmt) error {
 		record.ClientIP,
 		record.TestID,
 		record.SessionID,
+		record.ConnectionID,
+		record.MessageType,
+		record.Direction,
 	)
 	if err != nil {
 		return fmt.Errorf("saving record %s: %w", record.ID, err)

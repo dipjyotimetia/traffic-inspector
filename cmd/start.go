@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -12,6 +13,7 @@ import (
 	conf "github.com/dipjyotimetia/traffic-inspector/config"
 	"github.com/dipjyotimetia/traffic-inspector/internal/db"
 	"github.com/dipjyotimetia/traffic-inspector/internal/proxy"
+	"github.com/dipjyotimetia/traffic-inspector/internal/web"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -57,6 +59,35 @@ var startCmd = &cobra.Command{
 				httpsServer := proxy.StartHTTPSProxy(ctx, cfg, database, stmt)
 				if httpsServer != nil {
 					servers = append(servers, httpsServer)
+				}
+			}()
+		}
+
+		if true { // Always start the UI
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				uiPort := viper.GetInt("ui_port")
+				if uiPort == 0 {
+					uiPort = 9090 // Default UI port
+				}
+
+				// Create UI handler
+				uiHandler := web.NewUIHandler(database)
+
+				// Create a mux and register routes
+				mux := http.NewServeMux()
+				uiHandler.RegisterRoutes(mux)
+
+				// Create the server
+				uiServer := &http.Server{
+					Addr:    fmt.Sprintf(":%d", uiPort),
+					Handler: mux,
+				}
+
+				log.Printf("🌐 Starting web UI at http://localhost:%d/ui/", uiPort)
+				if err := uiServer.ListenAndServe(); err != http.ErrServerClosed {
+					log.Printf("⚠️ Web UI server error: %v", err)
 				}
 			}()
 		}
@@ -122,6 +153,8 @@ func init() {
 	startCmd.Flags().Int("tls-port", 8443, "HTTPS port")
 	startCmd.Flags().Bool("insecure", false, "Allow insecure TLS connections to target servers")
 
+	startCmd.Flags().Int("ui-port", 9090, "Port for the web UI")
+
 	// Add WebSocket specific flags
 	startCmd.Flags().Bool("websocket", false, "Enable WebSocket support")
 	startCmd.Flags().Int("ws-read-buffer", 4096, "WebSocket read buffer size in bytes")
@@ -130,6 +163,7 @@ func init() {
 	startCmd.Flags().Duration("ws-timeout", 10*time.Second, "WebSocket handshake timeout")
 	startCmd.Flags().Duration("ws-ping", 30*time.Second, "WebSocket ping interval")
 
+	viper.BindPFlag("ui_port", startCmd.Flags().Lookup("ui-port"))
 	viper.BindPFlag("recording_mode", startCmd.Flags().Lookup("record"))
 	viper.BindPFlag("replay_mode", startCmd.Flags().Lookup("replay"))
 	viper.BindPFlag("tls.enabled", startCmd.Flags().Lookup("tls"))
