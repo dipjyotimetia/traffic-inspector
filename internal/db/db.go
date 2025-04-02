@@ -14,9 +14,10 @@ import (
 type TrafficRecord struct {
 	ID              string    `json:"id"`
 	Timestamp       time.Time `json:"timestamp"`
-	Protocol        string    `json:"protocol"` // HTTP only now
-	Method          string    `json:"method"`   // HTTP method
+	Protocol        string    `json:"protocol"` // HTTP or WebSocket
+	Method          string    `json:"method"`   // HTTP method or WS event type (connect/message/close)
 	URL             string    `json:"url"`
+	Service         string    `json:"service"` // Added service field
 	RequestHeaders  string    `json:"request_headers"`
 	RequestBody     []byte    `json:"request_body"`
 	ResponseStatus  int       `json:"response_status"` // HTTP status code
@@ -24,8 +25,11 @@ type TrafficRecord struct {
 	ResponseBody    []byte    `json:"response_body"`
 	Duration        int64     `json:"duration_ms"` // Duration in milliseconds
 	ClientIP        string    `json:"client_ip"`
-	TestID          string    `json:"test_id"`    // Optional: Link to test case ID
-	SessionID       string    `json:"session_id"` // For grouping related requests
+	TestID          string    `json:"test_id"`       // Optional: Link to test case ID
+	SessionID       string    `json:"session_id"`    // For grouping related requests
+	ConnectionID    string    `json:"connection_id"` // WebSocket connection identifier
+	MessageType     int       `json:"message_type"`  // For WebSocket: text/binary/etc.
+	Direction       string    `json:"direction"`     // For WebSocket: inbound/outbound
 }
 
 // Initialize sets up the database connection and schema
@@ -57,7 +61,7 @@ func Initialize(dbPath string) (*sql.DB, *sql.Stmt, error) {
 
 // setupDatabase creates schema and prepares insert statement
 func setupDatabase(db *sql.DB) (*sql.Stmt, error) {
-	// Schema creation SQL (same as in your original code)
+	// Schema creation SQL with WebSocket support
 	query := `
     CREATE TABLE IF NOT EXISTS traffic_records (
         id TEXT PRIMARY KEY,
@@ -74,13 +78,21 @@ func setupDatabase(db *sql.DB) (*sql.Stmt, error) {
         duration_ms INTEGER,
         client_ip TEXT,
         test_id TEXT,         
-        session_id TEXT       
+        session_id TEXT,
+        connection_id TEXT,    -- WebSocket connection identifier
+        message_type INTEGER,  -- WebSocket message type
+        direction TEXT         -- WebSocket message direction
     );
 
     -- Index for HTTP replay/lookup
     CREATE INDEX IF NOT EXISTS idx_http_lookup ON traffic_records(protocol, method, url) WHERE protocol = 'HTTP';
+    
+    -- Index for WebSocket replay/lookup
+    CREATE INDEX IF NOT EXISTS idx_ws_lookup ON traffic_records(protocol, connection_id) WHERE protocol = 'WebSocket';
+    
     -- Index for searching by time
     CREATE INDEX IF NOT EXISTS idx_timestamp ON traffic_records(timestamp);
+    
     -- Index for searching by session or test ID
     CREATE INDEX IF NOT EXISTS idx_session_id ON traffic_records(session_id) WHERE session_id IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_test_id ON traffic_records(test_id) WHERE test_id IS NOT NULL;
@@ -96,8 +108,9 @@ func setupDatabase(db *sql.DB) (*sql.Stmt, error) {
         id, timestamp, protocol, method, url, service,
         request_headers, request_body, response_status,
         response_headers, response_body, duration_ms,
-        client_ip, test_id, session_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        client_ip, test_id, session_id, connection_id,
+        message_type, direction
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	stmt, err := db.Prepare(insertSQL)
 	if err != nil {

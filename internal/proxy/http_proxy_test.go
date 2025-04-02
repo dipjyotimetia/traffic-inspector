@@ -77,14 +77,17 @@ func TestStartHTTPProxy_PassthroughMode(t *testing.T) {
             duration_ms INTEGER,
             client_ip TEXT,
             test_id TEXT,
-            session_id TEXT
+            session_id TEXT,
+			connection_id TEXT,
+        	message_type INTEGER,
+        	direction TEXT
         );
     `)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
 
-	stmt, err := db.Prepare(`INSERT INTO traffic_records VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	stmt, err := db.Prepare(`INSERT INTO traffic_records VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		t.Fatalf("Failed to prepare statement: %v", err)
 	}
