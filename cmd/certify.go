@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/dipjyotimetia/traffic-inspector/internal/proxy"
+	"github.com/dipjyotimetia/traffic-inspector/internal/certs"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -41,7 +41,7 @@ These certificates are suitable for development and testing only.`,
 		log.Printf("🔑 Generating private key: %s", keyPath)
 
 		start := time.Now()
-		err := proxy.GenerateSelfSignedCert(certPath, keyPath)
+		err := certs.GenerateSelfSignedCert(certPath, keyPath)
 		if err != nil {
 			log.Fatalf("❌ Failed to generate certificates: %v", err)
 		}

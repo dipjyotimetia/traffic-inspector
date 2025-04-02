@@ -1,4 +1,4 @@
-package proxy
+package certs
 
 import (
 	"crypto/rand"
