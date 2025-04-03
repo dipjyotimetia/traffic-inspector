@@ -40,6 +40,7 @@ var startCmd = &cobra.Command{
 
 		var wg sync.WaitGroup
 		var servers []proxy.Server
+		var uiServer *http.Server
 
 		if cfg.HTTPPort > 0 {
 			wg.Add(1)
@@ -80,7 +81,7 @@ var startCmd = &cobra.Command{
 				uiHandler.RegisterRoutes(mux)
 
 				// Create the server
-				uiServer := &http.Server{
+				uiServer = &http.Server{
 					Addr:    fmt.Sprintf(":%d", uiPort),
 					Handler: mux,
 				}
@@ -89,25 +90,6 @@ var startCmd = &cobra.Command{
 				if err := uiServer.ListenAndServe(); err != http.ErrServerClosed {
 					log.Printf("⚠️ Web UI server error: %v", err)
 				}
-			}()
-		}
-
-		if cfg.WebSocket.Enabled {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				log.Printf("🔌 Starting WebSocket proxy on port %d", cfg.HTTPPort)
-				// WebSocket proxy uses the same HTTP/HTTPS servers, so no need to add to servers list
-				wsProxy := proxy.NewWebSocketProxy(cfg, database, stmt)
-
-				// Log WebSocket routes
-				log.Println("📝 WebSocket route configuration:")
-				for _, route := range cfg.WebSocket.WebSocketRoutes {
-					log.Printf("  %s -> %s (%s)", route.PathPrefix, route.TargetURL, route.Description)
-				}
-
-				// Register the WebSocket handler with the HTTP servers
-				http.Handle("/ws/", wsProxy)
 			}()
 		}
 
@@ -133,6 +115,20 @@ var startCmd = &cobra.Command{
 					log.Printf("✅ %s server stopped gracefully", serverType)
 				}
 			}(i, server)
+		}
+
+		// Add UI server shutdown
+		if uiServer != nil {
+			shutdownWg.Add(1)
+			go func() {
+				defer shutdownWg.Done()
+				log.Printf("⏳ Shutting down UI server...")
+				if err := uiServer.Shutdown(shutdownCtx); err != nil {
+					log.Printf("⚠️ UI server shutdown error: %v", err)
+				} else {
+					log.Printf("✅ UI server stopped gracefully")
+				}
+			}()
 		}
 
 		shutdownWg.Wait()
@@ -171,14 +167,6 @@ func init() {
 	viper.BindPFlag("tls.key_file", startCmd.Flags().Lookup("key"))
 	viper.BindPFlag("tls.port", startCmd.Flags().Lookup("tls-port"))
 	viper.BindPFlag("tls.allow_insecure", startCmd.Flags().Lookup("insecure"))
-
-	// Bind WebSocket flags to config
-	viper.BindPFlag("websocket.enabled", startCmd.Flags().Lookup("websocket"))
-	viper.BindPFlag("websocket.read_buffer_size", startCmd.Flags().Lookup("ws-read-buffer"))
-	viper.BindPFlag("websocket.write_buffer_size", startCmd.Flags().Lookup("ws-write-buffer"))
-	viper.BindPFlag("websocket.enable_compression", startCmd.Flags().Lookup("ws-compression"))
-	viper.BindPFlag("websocket.handshake_timeout", startCmd.Flags().Lookup("ws-timeout"))
-	viper.BindPFlag("websocket.ping_interval", startCmd.Flags().Lookup("ws-ping"))
 }
 
 func getMode(cfg *conf.Config) string {
@@ -192,10 +180,6 @@ func getMode(cfg *conf.Config) string {
 
 	if cfg.TLS.Enabled {
 		mode += " with TLS"
-	}
-
-	if cfg.WebSocket.Enabled {
-		mode += " with WebSocket support"
 	}
 
 	return mode
