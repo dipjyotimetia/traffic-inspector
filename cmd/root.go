@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	conf "github.com/dipjyotimetia/traffic-inspector/config"
+	conf "github.com/dipjyotimetia/traffix/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -16,7 +16,7 @@ var (
 
 // rootCmd represents the base command
 var rootCmd = &cobra.Command{
-	Use:   "traffic-inspector",
+	Use:   "traffix",
 	Short: "A proxy server for recording and replaying HTTP traffic",
 	Long: `Traffic Inspector is a tool that sits between clients and servers, 
 recording HTTP traffic for later replay. It can operate in recording mode, 

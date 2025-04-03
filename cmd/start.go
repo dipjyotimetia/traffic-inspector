@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	conf "github.com/dipjyotimetia/traffic-inspector/config"
-	"github.com/dipjyotimetia/traffic-inspector/internal/db"
-	"github.com/dipjyotimetia/traffic-inspector/internal/proxy"
-	"github.com/dipjyotimetia/traffic-inspector/internal/web"
+	conf "github.com/dipjyotimetia/traffix/config"
+	"github.com/dipjyotimetia/traffix/internal/db"
+	"github.com/dipjyotimetia/traffix/internal/proxy"
+	"github.com/dipjyotimetia/traffix/internal/web"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

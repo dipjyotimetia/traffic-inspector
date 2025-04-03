@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dipjyotimetia/traffic-inspector/config"
+	"github.com/dipjyotimetia/traffix/config"
 )
 
 // MockServer creates a test HTTP server that returns predefined responses

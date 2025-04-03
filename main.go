@@ -1,6 +1,6 @@
 package main
 
-import "github.com/dipjyotimetia/traffic-inspector/cmd"
+import "github.com/dipjyotimetia/traffix/cmd"
 
 func main() {
 	cmd.Execute()

@@ -1,4 +1,4 @@
-module github.com/dipjyotimetia/traffic-inspector
+module github.com/dipjyotimetia/traffix
 
 go 1.24
 

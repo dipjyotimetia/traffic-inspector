@@ -117,7 +117,7 @@ func TestRootCommand(t *testing.T) {
 	io.Copy(&buf, r)
 	output := buf.String()
 
-	if !strings.Contains(output, "traffic-inspector") {
+	if !strings.Contains(output, "traffix") {
 		t.Errorf("help output does not contain expected text: %s", output)
 	}
 }

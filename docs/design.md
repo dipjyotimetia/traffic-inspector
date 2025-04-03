@@ -91,8 +91,8 @@ Traffic Inspector supports sophisticated path-based routing, allowing different 
 
 ```bash
 # Clone the repository
-git clone https://github.com/dipjyotimetia/traffic-inspector.git
-cd traffic-inspector
+git clone https://github.com/dipjyotimetia/traffix.git
+cd traffix
 
 # Build the application
 go build
@@ -102,19 +102,19 @@ go build
 
 ```bash
 # Start in passthrough mode
-./traffic-inspector start
+./traffix start
 
 # Start in recording mode
-./traffic-inspector start --record
+./traffix start --record
 
 # Start in replay mode
-./traffic-inspector start --replay
+./traffix start --replay
 
 # Use a custom config file
-./traffic-inspector start --config my-config.json
+./traffix start --config my-config.json
 
 # Display version information
-./traffic-inspector version
+./traffix version
 ```
 
 ### Configuration

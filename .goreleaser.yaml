@@ -40,6 +40,6 @@ changelog:
 release:
   github:
     owner: dipjyotimetia
-    name: traffic-inspector
+    name: traffix
   prerelease: auto
   draft: false

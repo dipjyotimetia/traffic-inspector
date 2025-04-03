@@ -21,8 +21,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/dipjyotimetia/traffic-inspector/config"
-	"github.com/dipjyotimetia/traffic-inspector/internal/db"
+	"github.com/dipjyotimetia/traffix/config"
+	"github.com/dipjyotimetia/traffix/internal/db"
 )
 
 // Server interface allows for mocking in tests

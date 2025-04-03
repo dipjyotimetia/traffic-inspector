@@ -1,4 +1,4 @@
-# Traffic Inspector
+# traffix
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -6,7 +6,7 @@ A powerful HTTP proxy for recording, replaying, and analyzing API traffic.
 
 ## Overview
 
-Traffic Inspector is a transparent HTTP proxy tool that sits between clients and servers, allowing you to:
+traffix is a transparent HTTP proxy tool that sits between clients and servers, allowing you to:
 
 - **Record** HTTP traffic for later analysis
 - **Replay** previously recorded responses without hitting backend servers
@@ -30,11 +30,11 @@ Traffic Inspector is a transparent HTTP proxy tool that sits between clients and
 
 ```bash
 # Option 1: Install directly
-go install github.com/dipjyotimetia/traffic-inspector@latest
+go install github.com/dipjyotimetia/traffix@latest
 
 # Option 2: Clone and build
-git clone https://github.com/dipjyotimetia/traffic-inspector.git
-cd traffic-inspector
+git clone https://github.com/dipjyotimetia/traffix.git
+cd traffix
 go build
 ```
 
@@ -59,16 +59,16 @@ go build
 
    ```bash
    # Start in passthrough mode
-   traffic-inspector start
+   traffix start
    
    # Start in recording mode
-   traffic-inspector start --record
+   traffix start --record
    
    # Start in replay mode
-   traffic-inspector start --replay
+   traffix start --replay
    
    # Use a custom config file
-   traffic-inspector start --config my-config.json
+   traffix start --config my-config.json
    ```
 
 ## Configuration Options

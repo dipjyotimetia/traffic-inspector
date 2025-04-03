@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/dipjyotimetia/traffic-inspector/internal/certs"
+	"github.com/dipjyotimetia/traffix/internal/certs"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
