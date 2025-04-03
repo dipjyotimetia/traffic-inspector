@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Monitor and inspect HTTP traffic in real-time">
     <title>Traffic Inspector</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -39,6 +40,22 @@
             line-height: 1.6;
         }
 
+        /* Accessibility - Skip link */
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            padding: 8px;
+            background: var(--primary);
+            color: white;
+            z-index: 1001;
+            transition: top 0.3s;
+        }
+        
+        .skip-link:focus {
+            top: 0;
+        }
+
         header {
             background: linear-gradient(135deg, var(--primary), #2c3e50);
             color: white;
@@ -66,14 +83,23 @@
             font-weight: 900;
         }
 
+        /* CSS property order - positioning, display & box model, other */
         .card {
+            /* Positioning */
+            position: relative;
+            z-index: 1;
+            /* Display & Box Model */
+            display: block;
+            width: 100%;
+            margin-bottom: 1.5rem;
+            padding: 0;
+            /* Other */
             background: white;
             border-radius: var(--border-radius);
+            border: none;
             box-shadow: var(--shadow);
             transition: var(--transition);
             overflow: hidden;
-            margin-bottom: 1.5rem;
-            border: none;
         }
 
         .card:hover {
@@ -95,6 +121,13 @@
         }
 
         /* Filters */
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+        }
+        
         .filters input,
         .filters select {
             padding: 0.7rem 1rem;
@@ -536,13 +569,6 @@
             transform: translateY(-2px);
         }
 
-        /* Responsive adjustments */
-        @media (max-width: 1024px) {
-            .detail-view {
-                width: 70%;
-            }
-        }
-
         @keyframes spinner {
             to {
                 transform: rotate(360deg);
@@ -581,6 +607,50 @@
             animation: statusUpdate 0.5s ease;
         }
 
+        /* Skeleton loading styles */
+        .skeleton {
+            height: 1em;
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+            border-radius: 4px;
+        }
+
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Print styles for better document printing */
+        @media print {
+            header, .filters, .pagination, #close-detail { 
+                display: none !important; 
+            }
+            
+            body {
+                background: white;
+            }
+            
+            .card {
+                box-shadow: none;
+                border: 1px solid #eee;
+            }
+            
+            .detail-view {
+                position: static;
+                width: 100%;
+                transform: none;
+                box-shadow: none;
+            }
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 1024px) {
+            .detail-view {
+                width: 70%;
+            }
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
@@ -604,26 +674,67 @@
                 width: 100%;
                 min-width: unset;
             }
+            
+            /* Responsive table solution */
+            table, thead, tbody, th, td, tr {
+                display: block;
+            }
+            
+            thead tr {
+                position: absolute;
+                top: -9999px;
+                left: -9999px;
+            }
+            
+            tr {
+                border: 1px solid var(--gray-light);
+                margin-bottom: 1rem;
+                border-radius: var(--border-radius);
+            }
+            
+            td {
+                border: none;
+                border-bottom: 1px solid #eee;
+                position: relative;
+                padding-left: 50%;
+                text-align: right;
+            }
+            
+            td:before {
+                position: absolute;
+                left: 1rem;
+                width: 45%;
+                padding-right: 10px;
+                text-align: left;
+                font-weight: bold;
+                content: attr(data-label);
+            }
+            
+            td:last-child {
+                border-bottom: none;
+            }
         }
     </style>
 </head>
 
 <body>
-    <header>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    
+    <header role="banner">
         <div class="container">
             <h1>Traffic Inspector</h1>
         </div>
     </header>
 
-    <div class="container">
-        <div class="card">
+    <main id="main-content" class="container">
+        <div class="card" role="region" aria-label="Transaction filters">
             <div class="card-header">
                 Filters
             </div>
             <div class="card-body">
                 <div class="filters">
-                    <input type="text" id="url-filter" placeholder="Filter by URL">
-                    <select id="method-filter">
+                    <input type="text" id="url-filter" placeholder="Filter by URL" aria-label="Filter by URL">
+                    <select id="method-filter" aria-label="Filter by method">
                         <option value="">All Methods</option>
                         <option value="GET">GET</option>
                         <option value="POST">POST</option>
@@ -631,17 +742,17 @@
                         <option value="DELETE">DELETE</option>
                         <option value="PATCH">PATCH</option>
                     </select>
-                    <select id="protocol-filter">
+                    <select id="protocol-filter" aria-label="Filter by protocol">
                         <option value="">All Protocols</option>
                         <option value="HTTP/1.1">HTTP/1.1</option>
                         <option value="HTTP/2.0">HTTP/2.0</option>
                     </select>
                     <div class="filter-group">
-                        <button id="apply-filters" class="button button-primary">
-                            <i class="fas fa-filter"></i> Apply Filters
+                        <button id="apply-filters" class="button button-primary" aria-label="Apply filters">
+                            <i class="fas fa-filter" aria-hidden="true"></i> Apply Filters
                         </button>
-                        <button id="clear-filters" class="button button-outline">
-                            <i class="fas fa-times"></i> Clear
+                        <button id="clear-filters" class="button button-outline" aria-label="Clear filters">
+                            <i class="fas fa-times" aria-hidden="true"></i> Clear
                         </button>
                     </div>
                 </div>
@@ -654,15 +765,15 @@
                 <div id="showing-info" class="pagination-info">Loading transactions...</div>
             </div>
             <div class="card-body table-responsive">
-                <table>
+                <table aria-label="Transaction history">
                     <thead>
                         <tr>
-                            <th>Time</th>
-                            <th>Method</th>
-                            <th>URL</th>
-                            <th>Status</th>
-                            <th>Duration</th>
-                            <th>Content Type</th>
+                            <th scope="col">Time</th>
+                            <th scope="col">Method</th>
+                            <th scope="col">URL</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Duration</th>
+                            <th scope="col">Content Type</th>
                         </tr>
                     </thead>
                     <tbody id="transactions-body">
@@ -674,25 +785,26 @@
             </div>
             <div class="pagination">
                 <div class="pagination-buttons">
-                    <button id="prev-page" class="button button-outline" disabled>
-                        <i class="fas fa-chevron-left"></i> Previous
+                    <button id="prev-page" class="button button-outline" disabled aria-label="Previous page">
+                        <i class="fas fa-chevron-left" aria-hidden="true"></i> Previous
                     </button>
-                    <button id="next-page" class="button button-outline" disabled>
-                        Next <i class="fas fa-chevron-right"></i>
+                    <button id="next-page" class="button button-outline" disabled aria-label="Next page">
+                        Next <i class="fas fa-chevron-right" aria-hidden="true"></i>
                     </button>
                 </div>
             </div>
         </div>
-    </div>
+    </main>
 
-    <div class="detail-view" id="detail-view">
+    <!-- Detail view panel -->
+    <div class="detail-view" id="detail-view" role="dialog" aria-labelledby="detail-title" aria-hidden="true">
         <div class="detail-header">
-            <h2><i class="fas fa-info-circle"></i> Transaction Details</h2>
-            <button class="close-btn" id="close-detail">&times;</button>
+            <h2 id="detail-title"><i class="fas fa-info-circle" aria-hidden="true"></i> Transaction Details</h2>
+            <button class="close-btn" id="close-detail" aria-label="Close details">&times;</button>
         </div>
         <div class="detail-content">
             <div class="detail-section">
-                <h3><i class="fas fa-arrow-right"></i> Request</h3>
+                <h3><i class="fas fa-arrow-right" aria-hidden="true"></i> Request</h3>
 
                 <div class="info-row">
                     <div class="info-label">URL:</div>
@@ -716,21 +828,21 @@
                 </div>
 
                 <div class="tab-container">
-                    <div class="tabs">
-                        <div class="tab active" data-tab="req-headers">Headers</div>
-                        <div class="tab" data-tab="req-body">Body</div>
+                    <div class="tabs" role="tablist">
+                        <div class="tab active" id="tab-req-headers" role="tab" aria-selected="true" aria-controls="req-headers" data-tab="req-headers" tabindex="0">Headers</div>
+                        <div class="tab" id="tab-req-body" role="tab" aria-selected="false" aria-controls="req-body" data-tab="req-body" tabindex="0">Body</div>
                     </div>
-                    <div class="tab-content active" id="req-headers">
+                    <div class="tab-content active" id="req-headers" role="tabpanel" aria-labelledby="tab-req-headers">
                         <pre id="detail-req-headers"></pre>
                     </div>
-                    <div class="tab-content" id="req-body">
+                    <div class="tab-content" id="req-body" role="tabpanel" aria-labelledby="tab-req-body">
                         <pre id="detail-req-body"></pre>
                     </div>
                 </div>
             </div>
 
             <div class="detail-section">
-                <h3><i class="fas fa-arrow-left"></i> Response</h3>
+                <h3><i class="fas fa-arrow-left" aria-hidden="true"></i> Response</h3>
 
                 <div class="info-row">
                     <div class="info-label">Status:</div>
@@ -742,21 +854,21 @@
                 </div>
 
                 <div class="tab-container">
-                    <div class="tabs">
-                        <div class="tab active" data-tab="resp-headers">Headers</div>
-                        <div class="tab" data-tab="resp-body">Body</div>
+                    <div class="tabs" role="tablist">
+                        <div class="tab active" id="tab-resp-headers" role="tab" aria-selected="true" aria-controls="resp-headers" data-tab="resp-headers" tabindex="0">Headers</div>
+                        <div class="tab" id="tab-resp-body" role="tab" aria-selected="false" aria-controls="resp-body" data-tab="resp-body" tabindex="0">Body</div>
                     </div>
-                    <div class="tab-content active" id="resp-headers">
+                    <div class="tab-content active" id="resp-headers" role="tabpanel" aria-labelledby="tab-resp-headers">
                         <pre id="detail-resp-headers"></pre>
                     </div>
-                    <div class="tab-content" id="resp-body">
+                    <div class="tab-content" id="resp-body" role="tabpanel" aria-labelledby="tab-resp-body">
                         <pre id="detail-resp-body"></pre>
                     </div>
                 </div>
             </div>
 
             <div class="detail-section">
-                <h3><i class="fas fa-tag"></i> Metadata</h3>
+                <h3><i class="fas fa-tag" aria-hidden="true"></i> Metadata</h3>
 
                 <div class="info-row">
                     <div class="info-label">Session ID:</div>
@@ -781,6 +893,18 @@
             </div>
         </div>
     </div>
+    
+    <!-- Template for skeleton loading -->
+    <template id="skeleton-row">
+        <tr class="skeleton-row">
+            <td data-label="Time"><div class="skeleton"></div></td>
+            <td data-label="Method"><div class="skeleton"></div></td>
+            <td data-label="URL"><div class="skeleton"></div></td>
+            <td data-label="Status"><div class="skeleton"></div></td>
+            <td data-label="Duration"><div class="skeleton"></div></td>
+            <td data-label="Content Type"><div class="skeleton"></div></td>
+        </tr>
+    </template>
 
     <script>
         let currentPage = 1;
@@ -799,28 +923,50 @@
         const protocolFilter = document.getElementById('protocol-filter');
         const applyFiltersBtn = document.getElementById('apply-filters');
         const clearFiltersBtn = document.getElementById('clear-filters');
+        const skeletonTemplate = document.getElementById('skeleton-row');
+
+        // Debounce function to limit API calls
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
 
         // Event Listeners
         document.addEventListener('DOMContentLoaded', loadTransactions);
+        
         prevPageBtn.addEventListener('click', () => {
             if (currentPage > 1) {
                 currentPage--;
                 loadTransactions();
             }
         });
+        
         nextPageBtn.addEventListener('click', () => {
             if (currentPage * pageSize < totalTransactions) {
                 currentPage++;
                 loadTransactions();
             }
         });
+        
         closeDetailBtn.addEventListener('click', () => {
             detailView.classList.remove('active');
+            detailView.setAttribute('aria-hidden', 'true');
         });
+        
+        // Apply debounce to filter input
+        urlFilter.addEventListener('input', debounce(() => {
+            currentPage = 1;
+            loadTransactions();
+        }, 300));
+        
         applyFiltersBtn.addEventListener('click', () => {
             currentPage = 1;
             loadTransactions();
         });
+        
         clearFiltersBtn.addEventListener('click', () => {
             urlFilter.value = '';
             methodFilter.value = '';
@@ -829,26 +975,56 @@
             loadTransactions();
         });
 
-        // Tab functionality
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                const tabContainer = tab.closest('.tab-container');
-                const tabId = tab.getAttribute('data-tab');
+        // Keyboard navigation for detail view
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && detailView.classList.contains('active')) {
+                detailView.classList.remove('active');
+                detailView.setAttribute('aria-hidden', 'true');
+            }
+        });
 
-                // Update active tab
-                tabContainer.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-
-                // Update active content
-                tabContainer.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                document.getElementById(tabId).classList.add('active');
+        // Use event delegation for tabs
+        document.querySelectorAll('.tab-container').forEach(container => {
+            container.addEventListener('click', (e) => {
+                if (e.target.classList.contains('tab')) {
+                    const tabContainer = e.target.closest('.tab-container');
+                    const tabId = e.target.getAttribute('data-tab');
+                    
+                    // Update ARIA states
+                    tabContainer.querySelectorAll('.tab').forEach(t => {
+                        t.setAttribute('aria-selected', 'false');
+                        t.classList.remove('active');
+                    });
+                    e.target.setAttribute('aria-selected', 'true');
+                    e.target.classList.add('active');
+                    
+                    // Update active content
+                    tabContainer.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    document.getElementById(tabId).classList.add('active');
+                }
+            });
+            
+            // Keyboard support for tabs
+            container.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        tab.click();
+                    }
+                });
             });
         });
 
         // Load transactions from API
         function loadTransactions() {
             showingInfo.innerHTML = '<span class="loading-spinner"></span> Loading transactions...';
-            transactionsTable.innerHTML = '<tr><td colspan="6" style="text-align: center"><span class="loading-spinner"></span> Loading transactions...</td></tr>';
+            
+            // Show skeleton loading
+            transactionsTable.innerHTML = '';
+            for (let i = 0; i < 5; i++) {
+                const skeletonRow = document.importNode(skeletonTemplate.content, true);
+                transactionsTable.appendChild(skeletonRow);
+            }
 
             const url = new URL('/api/transactions', window.location.origin);
             url.searchParams.append('page', currentPage);
@@ -865,6 +1041,7 @@
                     renderTransactions(data.transactions);
                     totalTransactions = data.total;
                     updatePagination(data);
+                    makeRowsNavigable();
                 })
                 .catch(error => {
                     console.error('Error loading transactions:', error);
@@ -884,16 +1061,37 @@
             transactions.forEach(t => {
                 const row = document.createElement('tr');
                 row.className = 'fade-in';
+                row.setAttribute('tabindex', '0');  // Make focusable for keyboard navigation
+                row.setAttribute('aria-label', `Transaction ${t.method} ${truncateText(t.url, 30)}`);
                 row.innerHTML = `
-                    <td>${formatDate(t.timestamp)}</td>
-                    <td><span class="method-badge method-${t.method}">${t.method}</span></td>
-                    <td>${truncateText(t.url, 60)}</td>
-                    <td><span class="status status-${Math.floor(t.status / 100)}xx">${t.status}</span></td>
-                    <td>${t.duration_ms} ms</td>
-                    <td>${truncateText(t.content_type || '-', 30)}</td>
+                    <td data-label="Time">${formatDate(t.timestamp)}</td>
+                    <td data-label="Method"><span class="method-badge method-${t.method}">${t.method}</span></td>
+                    <td data-label="URL">${truncateText(t.url, 60)}</td>
+                    <td data-label="Status"><span class="status status-${Math.floor(t.status / 100)}xx">${t.status}</span></td>
+                    <td data-label="Duration">${t.duration_ms} ms</td>
+                    <td data-label="Content Type">${truncateText(t.content_type || '-', 30)}</td>
                 `;
                 row.addEventListener('click', () => loadTransactionDetail(t.id));
                 transactionsTable.appendChild(row);
+            });
+        }
+
+        // Make rows keyboard navigable
+        function makeRowsNavigable() {
+            const rows = document.querySelectorAll('#transactions-body tr');
+            rows.forEach((row, index) => {
+                row.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        row.click();
+                    } else if (e.key === 'ArrowDown' && index < rows.length - 1) {
+                        e.preventDefault();
+                        rows[index + 1].focus();
+                    } else if (e.key === 'ArrowUp' && index > 0) {
+                        e.preventDefault();
+                        rows[index - 1].focus();
+                    }
+                });
             });
         }
 
@@ -907,18 +1105,27 @@
             nextPageBtn.disabled = data.page * data.pageSize >= data.total;
         }
 
-        // Load transaction detail
+        // Load transaction detail with improved loading state
         function loadTransactionDetail(id) {
-            fetch(`/api/transactions/${id}`)
-                .then(response => response.json())
-                .then(data => {
-                    renderTransactionDetail(data);
-                    detailView.classList.add('active');
-                })
-                .catch(error => {
-                    console.error('Error loading transaction detail:', error);
-                    alert('Failed to load transaction details');
-                });
+            // Show loading indicator first
+            document.querySelectorAll('.detail-section pre').forEach(pre => {
+                pre.textContent = 'Loading...';
+            });
+            
+            // Open the panel immediately for better perceived performance
+            detailView.classList.add('active');
+            detailView.setAttribute('aria-hidden', 'false');
+            
+            // Then fetch data after UI is responsive
+            setTimeout(() => {
+                fetch(`/api/transactions/${id}`)
+                    .then(response => response.json())
+                    .then(data => renderTransactionDetail(data))
+                    .catch(error => {
+                        console.error('Error loading transaction detail:', error);
+                        alert('Failed to load transaction details');
+                    });
+            }, 10);
         }
 
         // Render transaction detail
@@ -967,6 +1174,10 @@
             document.getElementById('detail-connection-id').textContent = transaction.connection_id || 'N/A';
             document.getElementById('detail-message-type').textContent = transaction.message_type || 'N/A';
             document.getElementById('detail-direction').textContent = transaction.direction || 'N/A';
+            
+            // Update title for accessibility
+            document.getElementById('detail-title').innerHTML = 
+                `<i class="fas fa-info-circle" aria-hidden="true"></i> ${transaction.method} ${truncateText(transaction.url, 30)}`;
         }
 
         // Helper function to format body based on content type
@@ -1032,5 +1243,4 @@
         }
     </script>
 </body>
-
 </html>
