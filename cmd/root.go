@@ -45,9 +45,9 @@ func initConfig() {
 		viper.SetConfigFile(cfgFile)
 	} else {
 		// Search for config in current directory
-		viper.AddConfigPath(".")
 		viper.SetConfigName("config")
-		viper.SetConfigType("json")
+		viper.SetConfigType("yaml")
+		viper.AddConfigPath(".")
 	}
 
 	// Read environment variables prefixed with TRAFFIC_INSPECTOR_

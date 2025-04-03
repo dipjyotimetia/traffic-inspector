@@ -109,7 +109,7 @@ func (h *UIHandler) handleTransactionsList(w http.ResponseWriter, r *http.Reques
 	offset := (page - 1) * pageSize
 
 	// Build query
-	queryParams := []interface{}{}
+	queryParams := []any{}
 	query := `SELECT 
         id, timestamp, protocol, method, url, response_status, duration_ms, response_headers
         FROM traffic_records WHERE 1=1`
